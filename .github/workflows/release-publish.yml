@@ -105,7 +105,7 @@ jobs:
             const releaseId = context.payload.release.id;
             const currentBody = context.payload.release.body || '';
             const milestoneUrl = '${{ steps.find-milestone.outputs.milestone_url }}';
-            const issuesList = JSON.parse('${{ toJson(steps.find-milestone.outputs.issues_list) }}');
+            const issuesList = `${{ steps.find-milestone.outputs.issues_list }}`;
 
             let newBody = currentBody;
             if (milestoneUrl) {
