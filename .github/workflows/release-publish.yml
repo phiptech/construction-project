@@ -99,6 +99,7 @@ jobs:
 
       # 更新 Release 描述，添加 Milestone 链接和 Issues 列表
       - name: Update release body with milestone and issues
+        if: steps.find-milestone.outputs.milestone_number != ''
         uses: actions/github-script@v6
         with:
           script: |
