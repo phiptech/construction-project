@@ -1,0 +1,27 @@
+name: Release Automation
+
+on:
+  release:
+    types: [published]  # 当发布 Release 时触发
+
+jobs:
+  associate-milestone:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install dependencies
+        run: npm install axios
+
+      - name: Run script to associate milestone
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/associate-milestone.js
