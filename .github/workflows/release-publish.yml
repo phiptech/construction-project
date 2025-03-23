@@ -29,9 +29,6 @@ jobs:
         id: find-milestone
         with:
           script: |
-            const core = require('@actions/core');
-            const github = require('@actions/github');
-
             const tagName = context.payload.release.tag_name;
             const version = tagName.replace(/^v/, '');
             console.log(`Looking for milestone with title: ${version}`);
@@ -105,9 +102,6 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const core = require('@actions/core');
-            const github = require('@actions/github');
-
             const releaseId = context.payload.release.id;
             const currentBody = context.payload.release.body || '';
             const milestoneUrl = '${{ steps.find-milestone.outputs.milestone_url }}';
@@ -143,9 +137,6 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const core = require('@actions/core');
-            const github = require('@actions/github');
-
             const milestoneNumber = parseInt('${{ steps.find-milestone.outputs.milestone_number }}', 10);
             try {
               await github.rest.issues.updateMilestone({
