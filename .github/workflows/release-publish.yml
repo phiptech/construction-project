@@ -136,7 +136,7 @@ jobs:
 
       # 关闭 Milestone（仅在正式 Release 时）
       - name: Close milestone
-        if: steps.find-milestone.outputs.milestone_number != ''
+        if: steps.find-milestone.outputs.milestone_number != '' && github.event.release.prerelease == false
         uses: actions/github-script@v6
         with:
           script: |
@@ -155,7 +155,7 @@ jobs:
 
       # 下载现有的 issues.json 文件（如果存在）
       - name: Download existing issues.json
-        if: steps.find-milestone.outputs.issues_data != ''
+        if: steps.find-milestone.outputs.issues_data != '' && github.event.release.prerelease == false
         run: |
             mkdir -p pages
             curl -L -o pages/issues.json "https://phiptech.github.io/construction-project/issues.json" || echo "[]" > pages/issues.json
@@ -163,7 +163,7 @@ jobs:
 
     # 追加新 Issues 数据并生成新的 issues.json 文件
       - name: Append new issues to issues.json
-        if: steps.find-milestone.outputs.issues_data != ''
+        if: steps.find-milestone.outputs.issues_data != '' && github.event.release.prerelease == false
         run: |
             # 读取现有 issues.json 文件
             existing_data=$(cat pages/issues.json)
@@ -187,7 +187,7 @@ jobs:
 
         # 上传 Artifact
       - name: Upload artifact
-        if: steps.find-milestone.outputs.issues_data != ''
+        if: steps.find-milestone.outputs.issues_data != '' && github.event.release.prerelease == false
         uses: actions/upload-pages-artifact@v3
         with:
             path: 'pages'
@@ -195,6 +195,7 @@ jobs:
   # 部署到 GitHub Pages
   deploy-pages:
     needs: associate-milestone-and-list-issues
+    if: github.event.release.prerelease == false
     runs-on: ubuntu-latest
     permissions:
       pages: write
