@@ -1,36 +1,12 @@
-# name: Release Automation
-
-# on:
-#   release:
-#     types: [published]  # 当发布 Release 时触发
-
-# jobs:
-#   associate-milestone:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v3
-
-#       - name: Set up Node.js
-#         uses: actions/setup-node@v3
-#         with:
-#           node-version: 16
-
-#       - name: Install dependencies
-#         run: npm install axios
-
-#       - name: Run script to associate milestone
-#         env:
-#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#         run: |
-#           node scripts/associate-milestone.js
-
 name: Associate Milestone and List Issues on Release
 
 on:
   release:
     types: [published]
+
+permissions:
+  contents: write  # 确保可以更新 Release
+  issues: write    # 确保可以操作 Issues 和 Milestones
 
 jobs:
   associate-milestone-and-list-issues:
@@ -41,6 +17,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 调试：打印 Release 信息
+      - name: Debug release info
+        run: |
+          echo "Release Tag: ${{ github.event.release.tag_name }}"
+          echo "Is Pre-release: ${{ github.event.release.prerelease }}"
+
       # 查找 Milestone 并列出 Issues
       - name: Find matching milestone and list issues
         uses: actions/github-script@v6
@@ -49,22 +31,51 @@ jobs:
           script: |
             const tagName = context.payload.release.tag_name;
             const version = tagName.replace(/^v/, '');
-            const milestones = await github.rest.issues.listMilestones({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-            const milestone = milestones.data.find(m => m.title === version);
-            if (!milestone) {
-              console.log(`No matching milestone found for version ${version}`);
+            console.log(`Looking for milestone with title: ${version}`);
+            
+            let milestone;
+            try {
+              const milestones = await github.rest.issues.listMilestones({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              milestone = milestones.data.find(m => 
+                m.title === version || // 匹配 1.0.0
+                m.title === `v${version}` || // 匹配 v1.0.0
+                m.title === `Release ${version}` // 匹配 Release 1.0.0
+              );
+              if (!milestone) {
+                console.log(`No matching milestone found for version ${version}, creating one...`);
+                const newMilestone = await github.rest.issues.createMilestone({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: version,
+                  state: 'open',
+                  description: `Milestone for release ${tagName}`,
+                });
+                milestone = newMilestone.data;
+              }
+              console.log(`Found milestone: ${milestone.title} (number: ${milestone.number})`);
+            } catch (error) {
+              core.setFailed(`Failed to list or create milestones: ${error.message}`);
               return { milestone_number: '', milestone_url: '', issues_list: '' };
             }
-            const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              milestone: milestone.number,
-              state: 'all',
-            });
-            const issuesList = issues.data.map(issue => `- [#${issue.number}](${issue.html_url}) ${issue.title}`).sort().join('\n') || 'No issues found in this milestone.';
+
+            let issuesList;
+            try {
+              const issues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                milestone: milestone.number,
+                state: 'all',
+              });
+              issuesList = issues.data.map(issue => `- [#${issue.number}](${issue.html_url}) ${issue.title}`).sort().join('\n') || 'No issues found in this milestone.';
+              console.log(`Issues in milestone:\n${issuesList}`);
+            } catch (error) {
+              core.setFailed(`Failed to list issues: ${error.message}`);
+              return { milestone_number: '', milestone_url: '', issues_list: '' };
+            }
+
             return {
               milestone_number: milestone.number,
               milestone_url: milestone.html_url,
@@ -72,9 +83,15 @@ jobs:
             };
           result-encoding: json
 
+      # 调试：打印 Milestone 和 Issues 信息
+      - name: Debug milestone and issues
+        run: |
+          echo "Milestone Number: ${{ steps.find-milestone.outputs.milestone_number }}"
+          echo "Milestone URL: ${{ steps.find-milestone.outputs.milestone_url }}"
+          echo "Issues List: ${{ steps.find-milestone.outputs.issues_list }}"
+
       # 更新 Release 描述，添加 Milestone 链接和 Issues 列表
       - name: Update release body with milestone and issues
-        if: steps.find-milestone.outputs.milestone_number != ''
         uses: actions/github-script@v6
         with:
           script: |
@@ -82,13 +99,28 @@ jobs:
             const currentBody = context.payload.release.body || '';
             const milestoneUrl = ${{ steps.find-milestone.outputs.milestone_url }};
             const issuesList = ${{ steps.find-milestone.outputs.issues_list }};
-            const newBody = `${currentBody}\n\n## Associated Milestone\n[Milestone](${milestoneUrl})\n\n## Issues in Milestone\n${issuesList}`;
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: releaseId,
-              body: newBody,
-            });
+            let newBody = currentBody;
+            if (milestoneUrl) {
+              newBody += `\n\n## Associated Milestone\n[Milestone](${milestoneUrl})`;
+            } else {
+              newBody += `\n\n## Associated Milestone\nNo milestone found.`;
+            }
+            if (issuesList) {
+              newBody += `\n\n## Issues in Milestone\n${issuesList}`;
+            } else {
+              newBody += `\n\n## Issues in Milestone\nNo issues found.`;
+            }
+            try {
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: releaseId,
+                body: newBody,
+              });
+              console.log('Successfully updated release body');
+            } catch (error) {
+              core.setFailed(`Failed to update release body: ${error.message}`);
+            }
 
       # 关闭 Milestone（仅在正式 Release 时）
       - name: Close milestone
@@ -97,9 +129,14 @@ jobs:
         with:
           script: |
             const milestoneNumber = ${{ steps.find-milestone.outputs.milestone_number }};
-            await github.rest.issues.updateMilestone({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              milestone_number: milestoneNumber,
-              state: 'closed',
-            });
+            try {
+              await github.rest.issues.updateMilestone({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                milestone_number: milestoneNumber,
+                state: 'closed',
+              });
+              console.log(`Successfully closed milestone ${milestoneNumber}`);
+            } catch (error) {
+              core.setFailed(`Failed to close milestone: ${error.message}`);
+            }
