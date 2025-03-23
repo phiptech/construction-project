@@ -69,7 +69,16 @@ jobs:
                 milestone: milestone.number,
                 state: 'all',
               });
-              issuesList = issues.data.map(issue => `- [#${issue.number}](${issue.html_url}) ${issue.title}`).sort().join('\n') || 'No issues found in this milestone.';
+              issuesList = issues.data
+                .map(issue => {
+                  const cleanTitle = issue.title
+                    .replace(/;/g, '') // 移除分号
+                    .replace(/\n/g, ' ') // 替换换行符为空格
+                    .replace(/"/g, '\\"'); // 转义双引号
+                  return `- [#${issue.number}](${issue.html_url}) ${cleanTitle}`;
+                })
+                .sort()
+                .join('\n') || 'No issues found in this milestone.';
               console.log(`Issues in milestone:\n${issuesList}`);
             } catch (error) {
               core.setFailed(`Failed to list issues: ${error.message}`);
@@ -97,8 +106,8 @@ jobs:
           script: |
             const releaseId = context.payload.release.id;
             const currentBody = context.payload.release.body || '';
-            const milestoneUrl = ${{ steps.find-milestone.outputs.milestone_url }};
-            const issuesList = ${{ steps.find-milestone.outputs.issues_list }};
+            const milestoneUrl = JSON.parse('${{ toJson(steps.find-milestone.outputs.milestone_url) }}');
+            const issuesList = JSON.parse('${{ toJson(steps.find-milestone.outputs.issues_list) }}');
             let newBody = currentBody;
             if (milestoneUrl) {
               newBody += `\n\n## Associated Milestone\n[Milestone](${milestoneUrl})`;
@@ -124,7 +133,7 @@ jobs:
 
       # 关闭 Milestone（仅在正式 Release 时）
       - name: Close milestone
-        if: steps.find-milestone.outputs.milestone_number != '' && github.event.release.prerelease == false
+        if: steps.find-milestone.outputs.milestone_number != ''
         uses: actions/github-script@v6
         with:
           script: |
