@@ -77,9 +77,23 @@ jobs:
                 state: 'all',
               });
 
-              const filteredIssues = issues.data.filter(issue => 
-                !(issue.state === 'closed' && issue.closed_reason === 'not_planned')
-              );
+              issues.data.forEach(issue => {
+                const labels = issue.labels.map(label => label.name).join(', ');
+                console.log(`Issue #${issue.number}: state=${issue.state}, closed_reason=${issue.closed_reason || 'undefined'}, labels=[${labels}]`);
+              });
+
+              // 过滤掉 state 为 closed 且 (closed_reason 为 not_planned 或带有 wontfix/not planned 标签) 的 Issues
+              const filteredIssues = issues.data.filter(issue => {
+                const isNotPlannedByReason = issue.state === 'closed' && issue.closed_reason === 'not_planned';
+                const isNotPlannedByLabel = issue.labels.some(label => 
+                  label.name.toLowerCase() === 'wontfix' || label.name.toLowerCase() === 'not planned'
+                );
+                const isNotPlanned = isNotPlannedByReason || isNotPlannedByLabel;
+                if (isNotPlanned) {
+                  console.log(`Filtered out issue #${issue.number}: Closed as not planned (reason=${issue.closed_reason || 'undefined'}, labels=${issue.labels.map(label => label.name).join(', ')})`);
+                }
+                return !isNotPlanned;
+              });
 
               
               issuesData = filteredIssues.map(issue => ({
