@@ -76,7 +76,13 @@ jobs:
                 milestone: milestone.number,
                 state: 'all',
               });
-              issuesData = issues.data.map(issue => ({
+
+              const filteredIssues = issues.data.filter(issue => 
+                !(issue.state === 'closed' && issue.closed_reason === 'not_planned')
+              );
+
+              
+              issuesData = filteredIssues.map(issue => ({
                 release: context.payload.release.tag_name, // 添加 Release Tag
                 number: issue.number,
                 title: issue.title,
@@ -85,7 +91,7 @@ jobs:
                 created_at: issue.created_at,
                 closed_at: issue.closed_at || null,
               }));
-              issuesList = issues.data
+              issuesList = filteredIssues
                 .map(issue => {
                   const cleanTitle = issue.title
                     .replace(/;/g, '') // 移除分号
