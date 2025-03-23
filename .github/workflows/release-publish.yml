@@ -152,7 +152,7 @@ jobs:
 
             let newBody = currentBody;
             if (milestoneUrl) {
-              newBody += `\n\n## Associated Milestone\n[Milestone](${milestoneUrl})`;
+              newBody += `\n\n## Associated Milestone\n[Milestone](${milestoneUrl}?closed=1)`;
             } else {
               newBody += `\n\n## Associated Milestone\nNo milestone found.`;
             }
