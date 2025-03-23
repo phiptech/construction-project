@@ -5,8 +5,10 @@ on:
     types: [published]
 
 permissions:
-  contents: write  # 确保可以更新 Release
+  contents: write  # 确保可以更新 Release 和推送代码
   issues: write    # 确保可以操作 Issues 和 Milestones
+  pages: write     # 确保可以部署到 GitHub Pages
+  id-token: write  # 确保可以验证 GitHub Pages 部署
 
 jobs:
   associate-milestone-and-list-issues:
@@ -150,3 +152,57 @@ jobs:
             } catch (error) {
               core.setFailed(`Failed to close milestone: ${error.message}`);
             }
+
+      # 下载现有的 issues.json 文件（如果存在）
+      - name: Download existing issues.json
+        if: steps.find-milestone.outputs.issues_data != ''
+        run: |
+            mkdir -p pages
+            curl -L -o pages/issues.json "https://phiptech.github.io/construction-project/issues.json" || echo "[]" > pages/issues.json
+            cat pages/issues.json
+
+    # 追加新 Issues 数据并生成新的 issues.json 文件
+      - name: Append new issues to issues.json
+        if: steps.find-milestone.outputs.issues_data != ''
+        run: |
+            # 读取现有 issues.json 文件
+            existing_data=$(cat pages/issues.json)
+            
+            # 验证 existing_data 是否为有效的 JSON 数组，如果不是则初始化为空数组
+            if ! echo "$existing_data" | jq -e '. | arrays' >/dev/null; then
+                echo "Existing data is not a valid JSON array, initializing as empty array"
+                existing_data="[]"
+            fi
+            
+            # 解析现有数据和新数据
+            existing_array=$(echo "$existing_data" | jq '.')
+            new_data='${{ steps.find-milestone.outputs.issues_data }}'
+            
+            # 合并数据
+            updated_data=$(echo "$existing_array" | jq --argjson new "$new_data" '. += $new')
+            
+            # 保存更新后的数据到 issues.json
+            echo "$updated_data" > pages/issues.json
+            cat pages/issues.json
+
+        # 上传 Artifact
+      - name: Upload artifact
+        if: steps.find-milestone.outputs.issues_data != ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+            path: 'pages'
+
+  # 部署到 GitHub Pages
+  deploy-pages:
+    needs: associate-milestone-and-list-issues
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
