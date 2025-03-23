@@ -29,6 +29,9 @@ jobs:
         id: find-milestone
         with:
           script: |
+            const core = require('@actions/core');
+            const github = require('@actions/github');
+
             const tagName = context.payload.release.tag_name;
             const version = tagName.replace(/^v/, '');
             console.log(`Looking for milestone with title: ${version}`);
@@ -58,7 +61,7 @@ jobs:
               console.log(`Found milestone: ${milestone.title} (number: ${milestone.number})`);
             } catch (error) {
               core.setFailed(`Failed to list or create milestones: ${error.message}`);
-              return { milestone_number: '', milestone_url: '', issues_list: '' };
+              return;
             }
 
             let issuesList;
@@ -82,32 +85,34 @@ jobs:
               console.log(`Issues in milestone:\n${issuesList}`);
             } catch (error) {
               core.setFailed(`Failed to list issues: ${error.message}`);
-              return { milestone_number: '', milestone_url: '', issues_list: '' };
+              return;
             }
 
-            return {
-              milestone_number: milestone.number,
-              milestone_url: milestone.html_url,
-              issues_list: issuesList
-            };
-          result-encoding: json
+            // 设置输出
+            core.setOutput('milestone_number', milestone.number.toString());
+            core.setOutput('milestone_url', milestone.html_url);
+            core.setOutput('issues_list', issuesList);
 
       # 调试：打印 Milestone 和 Issues 信息
       - name: Debug milestone and issues
         run: |
-          echo "Milestone Number: ${{ steps.Find-milestone.outputs.milestone_number }}"
-          echo "Milestone URL: ${{ steps.Find-milestone.outputs.milestone_url }}"
-          echo "Issues List: ${{ steps.Find-milestone.outputs.issues_list }}"
+          echo "Milestone Number: ${{ steps.find-milestone.outputs.milestone_number }}"
+          echo "Milestone URL: ${{ steps.find-milestone.outputs.milestone_url }}"
+          echo "Issues List: ${{ steps.find-milestone.outputs.issues_list }}"
 
       # 更新 Release 描述，添加 Milestone 链接和 Issues 列表
       - name: Update release body with milestone and issues
         uses: actions/github-script@v6
         with:
           script: |
+            const core = require('@actions/core');
+            const github = require('@actions/github');
+
             const releaseId = context.payload.release.id;
             const currentBody = context.payload.release.body || '';
-            const milestoneUrl = JSON.parse('${{ toJson(steps.find-milestone.outputs.milestone_url) }}');
-            const issuesList = JSON.parse('${{ toJson(steps.find-milestone.outputs.issues_list) }}');
+            const milestoneUrl = '${{ steps.find-milestone.outputs.milestone_url }}';
+            const issuesList = '${{ steps.find-milestone.outputs.issues_list }}';
+
             let newBody = currentBody;
             if (milestoneUrl) {
               newBody += `\n\n## Associated Milestone\n[Milestone](${milestoneUrl})`;
@@ -119,6 +124,7 @@ jobs:
             } else {
               newBody += `\n\n## Issues in Milestone\nNo issues found.`;
             }
+
             try {
               await github.rest.repos.updateRelease({
                 owner: context.repo.owner,
@@ -137,7 +143,10 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const milestoneNumber = ${{ steps.find-milestone.outputs.milestone_number }};
+            const core = require('@actions/core');
+            const github = require('@actions/github');
+
+            const milestoneNumber = parseInt('${{ steps.find-milestone.outputs.milestone_number }}', 10);
             try {
               await github.rest.issues.updateMilestone({
                 owner: context.repo.owner,
