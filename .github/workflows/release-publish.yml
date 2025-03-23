@@ -95,9 +95,9 @@ jobs:
       # 调试：打印 Milestone 和 Issues 信息
       - name: Debug milestone and issues
         run: |
-          echo "Milestone Number: ${{ steps.find-milestone.outputs.milestone_number }}"
-          echo "Milestone URL: ${{ steps.find-milestone.outputs.milestone_url }}"
-          echo "Issues List: ${{ steps.find-milestone.outputs.issues_list }}"
+          echo "Milestone Number: ${{ steps.Find-milestone.outputs.milestone_number }}"
+          echo "Milestone URL: ${{ steps.Find-milestone.outputs.milestone_url }}"
+          echo "Issues List: ${{ steps.Find-milestone.outputs.issues_list }}"
 
       # 更新 Release 描述，添加 Milestone 链接和 Issues 列表
       - name: Update release body with milestone and issues
